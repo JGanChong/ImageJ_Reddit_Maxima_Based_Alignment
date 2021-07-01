@@ -1,0 +1,50 @@
+setOption("ExpandableArrays", true);
+radius = 150;
+prominence = 50;
+difx_arr = newArray();
+dify_arr = newArray();
+noEXT = File.nameWithoutExtension;
+title = getTitle();
+title2 = noEXT+"_1.jpg";
+selectImage(title);
+run("Duplicate...", "title=test1");
+selectImage(title2);
+run("Duplicate...", "title=test2");
+selectImage("test1");
+run("8-bit");
+run("Variance...", "radius=15");
+run("Maximum...", "radius=5");
+run("Find Maxima...", "prominence="+prominence+" strict output=[Point Selection]");
+Roi.getCoordinates(x1points, y1points);
+
+selectImage("test2");
+run("8-bit");
+run("Variance...", "radius=15");
+run("Maximum...", "radius=5");
+run("Find Maxima...", "prominence="+prominence+" strict output=[Point Selection]");
+Roi.getCoordinates(x2points, y2points);
+counter = 0;
+for (i = 0; i < x1points.length; i++) {
+	makeRectangle(x1points[i]-(radius/2), y1points[i]-(radius/2), radius, radius);
+	Roi.getContainedPoints(checkx, checky);
+	for (p = 0; p < x2points.length; p++) {
+		if (Roi.contains(x2points[p], y2points[p])) { 
+			differencex = x2points[p]-x1points[i];
+			differencey = y2points[p]-y1points[i];
+		}
+		
+	}
+	difx_arr[counter] = differencex;
+	dify_arr[counter] = differencey;
+	counter+=1;
+	
+}
+
+
+Array.getStatistics(difx_arr, min, max, xoffset, stdDev);
+Array.getStatistics(dify_arr, min, max, yoffset, stdDev);
+selectImage(title);
+run("Translate...", "x="+xoffset+" y="+yoffset+" interpolation=None");
+run("Merge Channels...", "c1=A_1_1.jpg c2=A_1.jpg create ignore");
+close("test1");
+close("test2");
