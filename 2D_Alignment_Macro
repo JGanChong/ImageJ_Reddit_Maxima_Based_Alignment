@@ -1,50 +1,101 @@
-setOption("ExpandableArrays", true);
-radius = 150;
-prominence = 50;
-difx_arr = newArray();
-dify_arr = newArray();
-noEXT = File.nameWithoutExtension;
-title = getTitle();
-title2 = noEXT+"_1.jpg";
-selectImage(title);
-run("Duplicate...", "title=test1");
-selectImage(title2);
-run("Duplicate...", "title=test2");
-selectImage("test1");
-run("8-bit");
-run("Variance...", "radius=15");
-run("Maximum...", "radius=5");
-run("Find Maxima...", "prominence="+prominence+" strict output=[Point Selection]");
-Roi.getCoordinates(x1points, y1points);
+/* Align 2 2D images using filtering plus maxima of particles.
+ *  
+ *  Macro Instructions:
+ * 	Put all images A in one folder and all images B in another. Image A and B are a pair and to be paired. Keep the naming scheme the same. It uses alphabetical order to match.
+ *  
+ * Macro tested with ImageJ 1.53g, Java 1.8.0_172 (64bit) Windows 10
+ * Macro by Johnny Gan Chong email:behappyftw@g.ucla.edu
+ * June 2021
+ */
 
-selectImage("test2");
-run("8-bit");
-run("Variance...", "radius=15");
-run("Maximum...", "radius=5");
-run("Find Maxima...", "prominence="+prominence+" strict output=[Point Selection]");
-Roi.getCoordinates(x2points, y2points);
-counter = 0;
-for (i = 0; i < x1points.length; i++) {
-	makeRectangle(x1points[i]-(radius/2), y1points[i]-(radius/2), radius, radius);
-	Roi.getContainedPoints(checkx, checky);
-	for (p = 0; p < x2points.length; p++) {
-		if (Roi.contains(x2points[p], y2points[p])) { 
-			differencex = x2points[p]-x1points[i];
-			differencey = y2points[p]-y1points[i];
+setOption("ExpandableArrays", true);
+radius = 30; //Radius to look for match. (max offset distance)
+prominence = 200; //Play with this value.
+close("*");
+
+setBatchMode(true);
+Dialog.create("Select Folders");
+Dialog.addDirectory("Folder A", "Z:/Alignmenttest/A" + File.separator );
+Dialog.addDirectory("Folder B", "Z:/Alignmenttest/B"+File.separator );
+Dialog.show();
+adir = Dialog.getString();
+bdir = Dialog.getString();
+lista = getFileList(adir);
+lista = Array.sort(lista);
+listb = getFileList(bdir);
+listb = Array.sort(listb);
+parent=File.getParent(adir);
+if (File.isDirectory(parent+File.separator+"output")==false) {
+	File.makeDirectory(parent+File.separator+"output");
+}
+output = parent+File.separator+"output";
+titletext = "[Progress]";
+run("Text Window...", "name="+ titletext +" width=30 height=2 monospaced");
+
+for (i = 0; i < lista.length; i++) {
+	progresscell = i+1;
+	print(titletext, "\\Update:Processing Cell:"+progresscell+"/"+lista.length);
+	difx_arr = newArray();
+	dify_arr = newArray();
+	
+	open(adir+lista[i]);
+	noEXT = File.nameWithoutExtension;
+	title = getTitle();
+
+	open(bdir+listb[i]);
+	title2 = getTitle();
+	
+	selectImage(title);
+	run("Duplicate...", "title=test1");
+	selectImage(title2);
+	run("Duplicate...", "title=test2");
+	
+	selectImage("test1");
+	run("8-bit");
+	run("Enhance Contrast...", "saturated=0.1 normalize");
+	run("Variance...", "radius=2");
+	run("Maximum...", "radius=10");
+	//run("Maximum...", "radius=5");
+	run("Find Maxima...", "prominence="+prominence+" strict output=[Point Selection]");
+	Roi.getCoordinates(x1points, y1points);
+	
+	selectImage("test2");
+	run("8-bit");
+	run("Enhance Contrast...", "saturated=0.1 normalize");
+	run("Variance...", "radius=2");
+	run("Maximum...", "radius=10");
+	//run("Maximum...", "radius=5");
+	run("Find Maxima...", "prominence="+prominence+" strict output=[Point Selection]");
+	Roi.getCoordinates(x2points, y2points);
+	counter = 0;
+	for (t = 0; t < x1points.length; t++) {
+		makeRectangle(x1points[t]-radius, y1points[t]-radius, radius*2, radius*2);
+		Roi.getContainedPoints(checkx, checky);
+		for (p = 0; p < x2points.length; p++) {
+			if (Roi.contains(x2points[p], y2points[p])) { 
+				differencex = x2points[p]-x1points[t];
+				differencey = y2points[p]-y1points[t];
+				difx_arr[counter] = differencex;
+				dify_arr[counter] = differencey;
+				counter+=1;
+				continue;
+
+			}
+			
 		}
+
 		
 	}
-	difx_arr[counter] = differencex;
-	dify_arr[counter] = differencey;
-	counter+=1;
 	
+	
+	Array.getStatistics(difx_arr, min, max, xoffset, stdDev);
+	Array.getStatistics(dify_arr, min, max, yoffset, stdDev);
+	selectImage(title);
+	run("Translate...", "x="+xoffset+" y="+yoffset+" interpolation=None");
+	run("Merge Channels...", "c2="+title+" c5="+title2+" create ignore");
+	saveAs("tif",output+File.separator+noEXT+"_Merged.tif");
+	close("*");
+	
+
 }
-
-
-Array.getStatistics(difx_arr, min, max, xoffset, stdDev);
-Array.getStatistics(dify_arr, min, max, yoffset, stdDev);
-selectImage(title);
-run("Translate...", "x="+xoffset+" y="+yoffset+" interpolation=None");
-run("Merge Channels...", "c1=A_1_1.jpg c2=A_1.jpg create ignore");
-close("test1");
-close("test2");
+print(titletext, "\\Update:Done");
